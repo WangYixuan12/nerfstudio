@@ -328,6 +328,8 @@ def export_textured_mesh(
     unwrap_method: Literal["xatlas", "custom"] = "xatlas",
     raylen_method: Literal["edge", "none"] = "edge",
     num_pixels_per_side=1024,
+    use_feature=False,
+    feat_vis_info: dict={},
 ) -> None:
     """Textures a mesh using the radiance field from the Pipeline.
     The mesh is written to an OBJ file in the output directory,
@@ -404,7 +406,19 @@ def export_textured_mesh(
     with torch.no_grad():
         outputs = pipeline.model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
     # TODO: this can be done better by using the alpha channel
-    rgb = pipeline.model.get_rgba_image(outputs, "rgb")[..., :3]
+    if not use_feature:
+        rgb = pipeline.model.get_rgba_image(outputs, "rgb")[..., :3]
+    else:
+        features = outputs["feature"]
+        pca = feat_vis_info["pca"]
+        norm_min = torch.from_numpy(feat_vis_info["norm_min"]).to(device=device, dtype=torch.float32)
+        norm_max = torch.from_numpy(feat_vis_info["norm_max"]).to(device=device, dtype=torch.float32)
+        rgb = torch.zeros((features.shape[0], features.shape[1], 3), device=device)
+        for i in range(features.shape[1]):
+            rgb[i] = torch.from_numpy(pca.transform(features[i].cpu().numpy())).to(device=device, dtype=torch.float32)
+        rgb = (rgb - norm_min[None, None]) / (norm_max - norm_min)[None, None]
+        rgb = rgb.clamp(0.0, 1.0)
+        rgb = torch.flip(rgb, dims=[2])
 
     # save the texture image
     texture_image = rgb.cpu().numpy()

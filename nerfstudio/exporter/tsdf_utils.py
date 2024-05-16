@@ -286,7 +286,7 @@ def export_tsdf_mesh(
     use_bounding_box: bool = True,
     bounding_box_min: Tuple[float, float, float] = (-1.0, -1.0, -1.0),
     bounding_box_max: Tuple[float, float, float] = (1.0, 1.0, 1.0),
-) -> None:
+) -> Mesh:
     """Export a TSDF mesh from a pipeline.
 
     Args:
@@ -359,3 +359,4 @@ def export_tsdf_mesh(
     mesh = tsdf.get_mesh()
     CONSOLE.print("Saving TSDF Mesh")
     tsdf.export_mesh(mesh, filename=str(output_dir / "tsdf_mesh.ply"))
+    return mesh

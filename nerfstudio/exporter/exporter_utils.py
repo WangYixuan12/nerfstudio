@@ -74,7 +74,6 @@ def get_mesh_from_filename(filename: str, target_num_faces: Optional[int] = None
     mesh = ms.current_mesh()
     return get_mesh_from_pymeshlab_mesh(mesh)
 
-
 def generate_point_cloud(
     pipeline: Pipeline,
     num_points: int = 1000000,

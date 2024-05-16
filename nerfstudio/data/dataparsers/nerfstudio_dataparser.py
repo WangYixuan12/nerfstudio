@@ -51,7 +51,13 @@ class NerfstudioDataParserConfig(DataParserConfig):
     """How much to scale the camera origins by."""
     downscale_factor: Optional[int] = None
     """How much to downscale images. If not set, images are chosen such that the max dimension is <1600px."""
-    scene_scale: float = 1.0
+    # scene_scale: float = 1.0
+    x_lower_bound: float = -1.0
+    y_lower_bound: float = -1.0
+    z_lower_bound: float = -1.0
+    x_upper_bound: float = 1.0
+    y_upper_bound: float = 1.0
+    z_upper_bound: float = 1.0
     """How much to scale the region of interest by."""
     orientation_method: Literal["pca", "up", "vertical", "none"] = "up"
     """The method to use for orientation."""
@@ -255,10 +261,16 @@ class Nerfstudio(DataParser):
 
         # in x,y,z order
         # assumes that the scene is centered at the origin
-        aabb_scale = self.config.scene_scale
+        # aabb_scale = self.config.scene_scale
         scene_box = SceneBox(
             aabb=torch.tensor(
-                [[-aabb_scale, -aabb_scale, -aabb_scale], [aabb_scale, aabb_scale, aabb_scale]], dtype=torch.float32
+                [[self.config.x_lower_bound,
+                    self.config.y_lower_bound,
+                    self.config.z_lower_bound],
+                     [self.config.x_upper_bound,
+                    self.config.y_upper_bound,
+                    self.config.z_upper_bound]],
+                dtype=torch.float32,
             )
         )
 

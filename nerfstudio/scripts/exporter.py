@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, cast
@@ -31,6 +32,7 @@ import open3d as o3d
 import torch
 import tyro
 from typing_extensions import Annotated, Literal
+import trimesh
 
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.data.datamanagers.base_datamanager import VanillaDataManager
@@ -48,6 +50,7 @@ from nerfstudio.fields.sdf_field import SDFField
 from nerfstudio.pipelines.base_pipeline import Pipeline, VanillaPipeline
 from nerfstudio.utils.eval_utils import eval_setup
 from nerfstudio.utils.rich_utils import CONSOLE
+from nerfstudio.exporter.exporter_utils import Mesh
 
 
 @dataclass
@@ -196,7 +199,7 @@ class ExportTSDFMesh(Exporter):
     """Minimum of the bounding box, used if use_bounding_box is True."""
     bounding_box_max: Tuple[float, float, float] = (1, 1, 1)
     """Minimum of the bounding box, used if use_bounding_box is True."""
-    texture_method: Literal["tsdf", "nerf"] = "nerf"
+    texture_method: Literal["tsdf", "nerf", "pca"] = "nerf"
     """Method to texture the mesh with. Either 'tsdf' or 'nerf'."""
     px_per_uv_triangle: int = 4
     """Number of pixels per UV triangle."""
@@ -206,8 +209,10 @@ class ExportTSDFMesh(Exporter):
     """If using xatlas for unwrapping, the pixels per side of the texture image."""
     target_num_faces: Optional[int] = 50000
     """Target number of faces for the mesh to texture."""
+    feat_vis_info: dict = dataclasses.field(default_factory=dict)
+    """Dictionary of feature visualizations to save."""
 
-    def main(self) -> None:
+    def main(self) -> o3d.geometry.TriangleMesh:
         """Export mesh"""
 
         if not self.output_dir.exists():
@@ -215,7 +220,7 @@ class ExportTSDFMesh(Exporter):
 
         _, pipeline, _, _ = eval_setup(self.load_config)
 
-        tsdf_utils.export_tsdf_mesh(
+        mesh = tsdf_utils.export_tsdf_mesh(
             pipeline,
             self.output_dir,
             self.downscale_factor,
@@ -227,11 +232,12 @@ class ExportTSDFMesh(Exporter):
             bounding_box_min=self.bounding_box_min,
             bounding_box_max=self.bounding_box_max,
         )
+        out_mesh = o3d.io.read_triangle_mesh(str(self.output_dir / "tsdf_mesh.ply"), True)
 
         # possibly
         # texture the mesh with NeRF and export to a mesh.obj file
         # and a material and texture file
-        if self.texture_method == "nerf":
+        if self.texture_method == "nerf" or self.texture_method == "pca":
             # load the mesh from the tsdf export
             mesh = get_mesh_from_filename(
                 str(self.output_dir / "tsdf_mesh.ply"), target_num_faces=self.target_num_faces
@@ -244,7 +250,13 @@ class ExportTSDFMesh(Exporter):
                 px_per_uv_triangle=self.px_per_uv_triangle if self.unwrap_method == "custom" else None,
                 unwrap_method=self.unwrap_method,
                 num_pixels_per_side=self.num_pixels_per_side,
+                use_feature=True if self.texture_method == "pca" else False,
+                feat_vis_info=self.feat_vis_info,
             )
+            out_mesh = o3d.io.read_triangle_mesh(str(self.output_dir / "mesh.obj"), True)
+            # reverse triangle order
+            out_mesh.triangles = o3d.utility.Vector3iVector(np.array(out_mesh.triangles)[:, ::-1])
+        return out_mesh
 
 
 @dataclass
@@ -395,7 +407,7 @@ class ExportMarchingCubesMesh(Exporter):
     target_num_faces: Optional[int] = 50000
     """Target number of faces for the mesh to texture."""
 
-    def main(self) -> None:
+    def main(self) -> Mesh:
         """Main function."""
         if not self.output_dir.exists():
             self.output_dir.mkdir(parents=True)
@@ -438,6 +450,7 @@ class ExportMarchingCubesMesh(Exporter):
             unwrap_method=self.unwrap_method,
             num_pixels_per_side=self.num_pixels_per_side,
         )
+        return mesh
 
 
 @dataclass
