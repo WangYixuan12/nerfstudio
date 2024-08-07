@@ -243,7 +243,7 @@ class ExportTSDFMesh(Exporter):
                 str(self.output_dir / "tsdf_mesh.ply"), target_num_faces=self.target_num_faces
             )
             CONSOLE.print("Texturing mesh with NeRF")
-            texture_utils.export_textured_mesh(
+            colors, features = texture_utils.export_textured_mesh(
                 mesh,
                 pipeline,
                 self.output_dir,
@@ -253,9 +253,13 @@ class ExportTSDFMesh(Exporter):
                 use_feature=True if self.texture_method == "pca" else False,
                 feat_vis_info=self.feat_vis_info,
             )
-            out_mesh = o3d.io.read_triangle_mesh(str(self.output_dir / "mesh.obj"), True)
-            # reverse triangle order
-            out_mesh.triangles = o3d.utility.Vector3iVector(np.array(out_mesh.triangles)[:, ::-1])
+            out_mesh = o3d.geometry.TriangleMesh(vertices=o3d.utility.Vector3dVector(mesh.vertices.cpu().numpy()), triangles=o3d.utility.Vector3iVector(mesh.faces.cpu().numpy()))
+            out_mesh.compute_vertex_normals()
+            out_mesh.vertex_colors = o3d.utility.Vector3dVector(colors)
+            # out_mesh = o3d.io.read_triangle_mesh(str(self.output_dir / "mesh.obj"), True)
+            # # reverse triangle order
+            # out_mesh.triangles = o3d.utility.Vector3iVector(np.array(out_mesh.triangles)[:, ::-1])
+            return out_mesh, colors, features
         return out_mesh
 
 
@@ -301,7 +305,7 @@ class ExportPoissonMesh(Exporter):
     """Number of pixels per UV triangle."""
     unwrap_method: Literal["xatlas", "custom"] = "xatlas"
     """The method to use for unwrapping the mesh."""
-    num_pixels_per_side: int = 2048
+    num_pixels_per_side: int = 1024
     """If using xatlas for unwrapping, the pixels per side of the texture image."""
     target_num_faces: Optional[int] = 50000
     """Target number of faces for the mesh to texture."""

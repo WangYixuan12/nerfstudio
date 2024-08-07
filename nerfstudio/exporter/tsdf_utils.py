@@ -58,6 +58,7 @@ class TSDF:
     """Origin of the TSDF [xmin, ymin, zmin]."""
     truncation_margin: float = 5.0
     """Margin for truncation."""
+    features: Optional[Tensor] = None
 
     def to(self, device: TORCH_DEVICE):
         """Move the tensors to the specified device.
@@ -71,6 +72,8 @@ class TSDF:
         self.colors = self.colors.to(device)
         self.voxel_size = self.voxel_size.to(device)
         self.origin = self.origin.to(device)
+        if self.features is not None:
+            self.features = self.features.to(device)
         return self
 
     @property

@@ -29,6 +29,7 @@ import torch
 import xatlas
 from jaxtyping import Float
 from torch import Tensor
+import open3d as o3d
 
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.exporter.exporter_utils import Mesh
@@ -424,6 +425,23 @@ def export_textured_mesh(
     texture_image = rgb.cpu().numpy()
     media.write_image(str(output_dir / "material_0.png"), texture_image)
 
+    # convert texture coordinates from faces to vertices
+    vert_texture_coordinates = torch.zeros((len(vertices), 2), device=device)
+    for i, face in enumerate(faces):
+        for j, vertex in enumerate(face):
+            vert_texture_coordinates[vertex] = texture_coordinates[i, j]
+    
+    # interpolate the features
+    vert_color = torch.nn.functional.grid_sample(rgb.unsqueeze(0).permute(0, 3, 1, 2), vert_texture_coordinates.unsqueeze(0).unsqueeze(0) * 2 - 1)[0, :, 0]
+    vert_color = vert_color.permute(1, 0)
+    if use_feature:
+        vert_features = torch.nn.functional.grid_sample(features.unsqueeze(0).permute(0, 3, 1, 2), vert_texture_coordinates.unsqueeze(0).unsqueeze(0) * 2 - 1)[0, :, 0]
+        vert_features = vert_features.permute(1, 0)
+    # # test the texture image
+    # test_mesh = o3d.geometry.TriangleMesh(vertices=o3d.utility.Vector3dVector(vertices.cpu().numpy()), triangles=o3d.utility.Vector3iVector(faces.cpu().numpy()))
+    # test_mesh.vertex_colors = o3d.utility.Vector3dVector(vert_color.cpu().numpy())
+    # o3d.visualization.draw_geometries([test_mesh])
+
     CONSOLE.print("Writing relevant OBJ information to files...")
     # create the .mtl file
     lines_mtl = [
@@ -506,3 +524,7 @@ def export_textured_mesh(
     for summary in summary_log:
         CONSOLE.print(summary, justify="center")
     CONSOLE.rule()
+    if use_feature:
+        return vert_color.detach().cpu().numpy(), vert_features.detach().cpu().numpy()
+    else:
+        return vert_color.detach().cpu().numpy(), None
